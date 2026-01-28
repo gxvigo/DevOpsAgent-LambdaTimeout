@@ -13,10 +13,20 @@ This CloudFormation stack deploys an API Gateway endpoint backed by a Lambda fun
 
 ```bash
 aws cloudformation create-stack \
-  --stack-name echo-api-stack \
+  --stack-name devops-agent-api-timeout \
   --template-body file://template.yaml \
   --capabilities CAPABILITY_IAM
 ```
+
+```
+Update existing stack:
+
+bash
+aws cloudformation update-stack \
+  --stack-name devops-agent-api-timeout \
+  --template-body file://template.yaml \
+  --capabilities CAPABILITY_IAM
+  ```
 
 ## Usage
 
