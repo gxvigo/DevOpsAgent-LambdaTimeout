@@ -122,6 +122,26 @@ The system includes 10 inspirational quotes:
 8. NameHandler combines name and quote into personalized message
 9. Response returned to user
 
+## Testing Timeout Behavior
+
+The NameHandler Lambda includes a configurable timeout feature for testing error handling:
+
+```bash
+# Cause the function to timeout (set TIMEOUT > 5 seconds)
+aws lambda update-function-configuration \
+  --function-name NameHandlerFunction \
+  --environment Variables={QUOTE_FUNCTION_ARN=<YOUR_ARN>,TIMEOUT=6} \
+  --region ap-southeast-2
+
+# Restore normal operation (set TIMEOUT to 0)
+aws lambda update-function-configuration \
+  --function-name NameHandlerFunction \
+  --environment Variables={QUOTE_FUNCTION_ARN=<YOUR_ARN>,TIMEOUT=0} \
+  --region ap-southeast-2
+```
+
+When TIMEOUT is set to 6, the function sleeps for 6 seconds, exceeding the 5-second Lambda timeout and triggering a failure. This is useful for testing CloudWatch alarms and error handling.
+
 ## Monitoring
 
 Both Lambda functions log to CloudWatch Logs:

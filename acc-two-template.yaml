@@ -39,10 +39,11 @@ Resources:
       Runtime: python3.11
       Handler: index.lambda_handler
       Role: !GetAtt NameHandlerLambdaExecutionRole.Arn
-      Timeout: 15
+      Timeout: 5
       Environment:
         Variables:
           QUOTE_FUNCTION_ARN: !Ref AccountOneQuoteFunctionArn
+          TIMEOUT: '0'
       Tags:
         - Key: application_id
           Value: quote-of-day
@@ -52,6 +53,7 @@ Resources:
           import random
           import boto3
           import os
+          import time
           import logging
           
           logger = logging.getLogger()
@@ -59,6 +61,7 @@ Resources:
           
           lambda_client = boto3.client('lambda')
           quote_function_arn = os.environ['QUOTE_FUNCTION_ARN']
+          sleep_time = int(os.environ.get('TIMEOUT', '0'))
           
           def lambda_handler(event, context):
               # Get name from query parameters
@@ -66,6 +69,12 @@ Resources:
               name = query_params.get('name', 'Friend') if query_params else 'Friend'
               
               logger.info(f"Lambda invoked with name: {name}")
+              logger.info(f"Sleep time configured: {sleep_time} seconds")
+              
+              # Simulate timeout if TIMEOUT environment variable is set
+              if sleep_time > 0:
+                  logger.warning(f"Sleeping for {sleep_time} seconds (may cause timeout)")
+                  time.sleep(sleep_time)
               
               # Generate random number between 1 and 10
               random_number = random.randint(1, 10)

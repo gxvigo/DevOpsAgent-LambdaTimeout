@@ -223,6 +223,61 @@ aws cloudformation wait stack-delete-complete \
   --region ap-southeast-2
 ```
 
+## Testing Timeout Behavior
+
+The NameHandler Lambda function in Account Two includes a configurable timeout feature for testing error handling and monitoring.
+
+### How It Works
+
+- The Lambda has a **5-second timeout**
+- The `TIMEOUT` environment variable controls sleep duration (default: 0 seconds)
+- Setting `TIMEOUT` to a value greater than 5 will cause the function to timeout
+
+### Simulate a Timeout Failure
+
+To make the function fail due to timeout:
+
+```bash
+# Set TIMEOUT to 6 seconds (exceeds the 5-second Lambda timeout)
+aws lambda update-function-configuration \
+  --function-name NameHandlerFunction \
+  --environment Variables={QUOTE_FUNCTION_ARN=arn:aws:lambda:ap-southeast-2:757934432864:function:GetQuoteFunction,TIMEOUT=6} \
+  --region ap-southeast-2
+
+# Wait a moment for the configuration to update
+sleep 5
+
+# Test the API - this should timeout
+curl "https://YOUR_API_ID.execute-api.ap-southeast-2.amazonaws.com/prod/quote?name=Test"
+```
+
+The function will sleep for 6 seconds, exceeding the 5-second timeout, and you'll receive a timeout error. The CloudWatch alarm should trigger after multiple failures.
+
+### Restore Normal Operation
+
+To restore the function to normal operation:
+
+```bash
+# Set TIMEOUT back to 0 seconds
+aws lambda update-function-configuration \
+  --function-name NameHandlerFunction \
+  --environment Variables={QUOTE_FUNCTION_ARN=arn:aws:lambda:ap-southeast-2:757934432864:function:GetQuoteFunction,TIMEOUT=0} \
+  --region ap-southeast-2
+
+# Test the API - should work normally
+curl "https://YOUR_API_ID.execute-api.ap-southeast-2.amazonaws.com/prod/quote?name=Test"
+```
+
+### Using AWS Console
+
+You can also change the TIMEOUT variable through the AWS Console:
+
+1. Go to Lambda → Functions → NameHandlerFunction
+2. Click on "Configuration" tab
+3. Click on "Environment variables"
+4. Edit the `TIMEOUT` variable (set to 6 to cause timeout, 0 for normal operation)
+5. Save changes
+
 ## Troubleshooting
 
 ### Cross-Account Invocation Issues
