@@ -1,78 +1,168 @@
-# Echo API with Lambda and CloudWatch Monitoring
+# Quote of the Day - Cross-Account AWS Architecture
 
-This CloudFormation stack deploys an API Gateway endpoint backed by a Lambda function that echoes input strings.
+A serverless application that delivers personalized inspirational quotes using AWS Lambda, DynamoDB, and API Gateway across two AWS accounts.
+
+## Overview
+
+This project demonstrates a cross-account AWS architecture where:
+- **Account One** hosts the quote database (DynamoDB) and retrieval service
+- **Account Two** hosts the public API that personalizes quotes with user names
+
+When a user calls the API with their name, the system generates a random number (1-10), retrieves a corresponding quote from the database in another AWS account, and returns a personalized message.
+
+## Architecture
+
+```
+User Request → API Gateway (Account Two) 
+              ↓
+         NameHandler Lambda (Account Two)
+              ↓ [Cross-Account Invocation]
+         GetQuote Lambda (Account One)
+              ↓
+         DynamoDB Quotes Table (Account One)
+```
 
 ## Features
 
-- **API Gateway**: Public HTTP GET endpoint at `/echo`
-- **Lambda Function**: Python 3.11 function that returns the input query parameter
-- **Intentional Failures**: Lambda times out ~1 in 3 invocations (for testing)
-- **CloudWatch Alarm**: Monitors for >10 errors per minute
+- **Cross-Account Lambda Invocation**: Secure communication between Lambda functions in different AWS accounts
+- **Auto-Initialization**: DynamoDB table automatically populates with quotes on first use
+- **Random Quote Selection**: Each request gets a random quote from 10 inspirational messages
+- **Personalized Messages**: Combines user's name with the quote of the day
+- **Serverless Architecture**: No servers to manage, pay only for what you use
+- **CloudWatch Monitoring**: Built-in alarms and logging for both Lambda functions
 
-## Deployment
+## Components
 
+### Account One (acc-one-template.yaml)
+- **DynamoDB Table**: `Quotes` table with 11 items (id 0-10)
+- **GetQuote Lambda**: Retrieves quotes by number and handles table initialization
+- **IAM Permissions**: Allows Account Two to invoke the Lambda function
+
+### Account Two (acc-two-template.yaml)
+- **NameHandler Lambda**: Orchestrates the quote retrieval process
+- **API Gateway**: Public REST API endpoint at `/quote`
+- **CloudWatch Alarm**: Monitors Lambda errors
+
+## Quick Start
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+
+### Prerequisites
+- AWS CLI configured
+- Access to two AWS accounts
+- IAM permissions to create CloudFormation stacks
+
+### Basic Deployment
+
+1. Deploy to Account One:
 ```bash
 aws cloudformation create-stack \
-  --stack-name devops-agent-api-timeout \
-  --template-body file://template.yaml \
+  --stack-name quote-of-day-acc-one \
+  --template-body file://acc-one-template.yaml \
+  --parameters ParameterKey=AccountTwoId,ParameterValue=<ACCOUNT_TWO_ID> \
   --capabilities CAPABILITY_IAM
 ```
 
-## Update existing stack:
-```bash
-aws cloudformation update-stack \
-  --stack-name devops-agent-api-timeout \
-  --template-body file://template.yaml \
-  --capabilities CAPABILITY_IAM
-  ```
+2. Get the Lambda ARN from Account One outputs
 
+3. Deploy to Account Two:
+```bash
+aws cloudformation create-stack \
+  --stack-name quote-of-day-acc-two \
+  --template-body file://acc-two-template.yaml \
+  --parameters ParameterKey=AccountOneQuoteFunctionArn,ParameterValue=<LAMBDA_ARN> \
+  --capabilities CAPABILITY_IAM
+```
 
 ## Usage
 
-After deployment, get the API endpoint:
+Once deployed, call the API with a name parameter:
 
 ```bash
-aws cloudformation describe-stacks \
-  --stack-name echo-api-stack \
-  --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
-  --output text
+curl "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/prod/quote?name=Giovanni"
 ```
 
-Test the API:
-
-```bash
-curl "https://YOUR_API_ID.execute-api.REGION.amazonaws.com/prod/echo?input=hello"
-```
-
-Expected response:
+Response:
 ```json
-{"echo": "hello"}
+{
+  "message": "Hello Giovanni. This is your quote for today: Don't think of cost. Think of value.",
+  "quote_number": 3
+}
 ```
+
+Without a name parameter, it defaults to "Friend":
+```bash
+curl "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/prod/quote"
+```
+
+## The Quotes Collection
+
+The system includes 10 inspirational quotes:
+
+1. You cannot change what you refuse to confront.
+2. Sometimes good things fall apart so better things can fall together.
+3. Don't think of cost. Think of value.
+4. Sometimes you need to distance yourself to see things clearly.
+5. Too many people buy things they don't need with money they don't have to impress people they don't know. Read Rich Dad, Poor Dad.
+6. No matter how many mistakes you make or how slow you progress, you are still way ahead of everyone who isn't trying.
+7. If a person wants to be a part of your life, they will make an obvious effort to do so. Think twice before reserving a space in your heart for people who do not make an effort to stay.
+8. Making one person smile can change the world – maybe not the whole world, but their world.
+9. Saying someone is ugly doesn't make you any prettier.
+10. The only normal people you know are the ones you don't know very well.
+
+## How It Works
+
+1. User makes GET request to `/quote?name=YourName`
+2. API Gateway triggers NameHandler Lambda in Account Two
+3. NameHandler generates random number (1-10)
+4. NameHandler invokes GetQuote Lambda in Account One with the number
+5. GetQuote checks if DynamoDB table is initialized
+6. If not initialized, loads all 10 quotes (plus control record)
+7. GetQuote retrieves the quote for the given number
+8. NameHandler combines name and quote into personalized message
+9. Response returned to user
 
 ## Monitoring
 
-The CloudWatch alarm will trigger when the Lambda function has more than 10 errors within a 1-minute period. You can view the alarm in the AWS Console under CloudWatch > Alarms.
+Both Lambda functions log to CloudWatch Logs:
+- `/aws/lambda/GetQuoteFunction` (Account One)
+- `/aws/lambda/NameHandlerFunction` (Account Two)
+
+CloudWatch Alarm triggers when NameHandler Lambda has >3 errors per minute.
+
+## Security
+
+- Cross-account access uses IAM roles and resource-based policies
+- Lambda functions follow principle of least privilege
+- DynamoDB uses on-demand billing mode
+- API Gateway endpoint is public (add authentication for production)
+
+## Cost Optimization
+
+- DynamoDB: Pay-per-request billing (no provisioned capacity)
+- Lambda: Pay only for invocations and compute time
+- API Gateway: Pay per API call
+- Estimated cost: <$1/month for low-volume usage
 
 ## Cleanup
 
+Delete stacks in reverse order:
+
 ```bash
-aws cloudformation delete-stack --stack-name echo-api-stack
+# Delete Account Two first
+aws cloudformation delete-stack --stack-name quote-of-day-acc-two
+
+# Then delete Account One
+aws cloudformation delete-stack --stack-name quote-of-day-acc-one
 ```
 
+## Files
 
+- `acc-one-template.yaml` - CloudFormation template for Account One
+- `acc-two-template.yaml` - CloudFormation template for Account Two
+- `DEPLOYMENT.md` - Detailed deployment guide
+- `template.yaml` - Legacy echo API template (deprecated)
 
-## Integration 
+## License
 
-### DevOps Agent Space Capabilities
-
-#### Pipelines
-- Github (gxvigo - https://github.com/gxvigo/DevOpsAgent-LambdaTimeout/)
-
-#### Ticketing
-- ServiceNow
-Followed the instruction https://docs.aws.amazon.com/devopsagent/latest/userguide/configuring-capabilities-for-aws-devops-agent-connecting-to-ticketing-and-chat-connecting-servicenow.html
-
-From the doc "Search sys_properties.list in the filter search box". The search box is the one under 'All' (next to ServiceNow logo), paste the value 'sys_properties.list' and hit enter, a page list will appear
-
-The instruction about condfiguting ServiceNow in DevOps Agent are poor. 
-The section "Follow the next steps, and save the resulting information about the webhook" means to go to the Agent Space - Capabilities 
+This project is provided as-is for educational and demonstration purposes. 

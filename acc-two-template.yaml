@@ -1,0 +1,203 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Quote of the Day - API Gateway and Name Handler Lambda (Account Two)'
+
+Parameters:
+  AccountOneQuoteFunctionArn:
+    Type: String
+    Description: ARN of the GetQuote Lambda function in Account One
+    AllowedPattern: '^arn:aws:lambda:[a-z0-9-]+:\d{12}:function:[a-zA-Z0-9-_]+$'
+
+Resources:
+  # Lambda Execution Role
+  NameHandlerLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: InvokeCrossAccountLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Ref AccountOneQuoteFunctionArn
+
+  # Lambda Function
+  NameHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: NameHandlerFunction
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt NameHandlerLambdaExecutionRole.Arn
+      Timeout: 15
+      Environment:
+        Variables:
+          QUOTE_FUNCTION_ARN: !Ref AccountOneQuoteFunctionArn
+      Tags:
+        - Key: application_id
+          Value: quote-of-day
+      Code:
+        ZipFile: |
+          import json
+          import random
+          import boto3
+          import os
+          import logging
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          lambda_client = boto3.client('lambda')
+          quote_function_arn = os.environ['QUOTE_FUNCTION_ARN']
+          
+          def lambda_handler(event, context):
+              # Get name from query parameters
+              query_params = event.get('queryStringParameters', {})
+              name = query_params.get('name', 'Friend') if query_params else 'Friend'
+              
+              logger.info(f"Lambda invoked with name: {name}")
+              
+              # Generate random number between 1 and 10
+              random_number = random.randint(1, 10)
+              logger.info(f"Generated random number: {random_number}")
+              
+              try:
+                  # Invoke the GetQuote Lambda in Account One
+                  response = lambda_client.invoke(
+                      FunctionName=quote_function_arn,
+                      InvocationType='RequestResponse',
+                      Payload=json.dumps({'number': random_number})
+                  )
+                  
+                  # Parse the response
+                  response_payload = json.loads(response['Payload'].read())
+                  logger.info(f"Response from GetQuote function: {response_payload}")
+                  
+                  if response_payload.get('statusCode') == 200:
+                      body = json.loads(response_payload['body'])
+                      quote = body.get('quote', 'No quote available')
+                      
+                      # Combine name and quote
+                      message = f"Hello {name}. This is your quote for today: {quote}"
+                      
+                      logger.info(f"Successfully generated message: {message}")
+                      
+                      return {
+                          'statusCode': 200,
+                          'headers': {
+                              'Content-Type': 'application/json'
+                          },
+                          'body': json.dumps({
+                              'message': message,
+                              'quote_number': random_number
+                          })
+                      }
+                  else:
+                      logger.error(f"Error from GetQuote function: {response_payload}")
+                      return {
+                          'statusCode': 500,
+                          'body': json.dumps({'error': 'Failed to retrieve quote'})
+                      }
+              
+              except Exception as e:
+                  logger.error(f"Error invoking GetQuote function: {str(e)}")
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps({'error': f'Failed to get quote: {str(e)}'})
+                  }
+
+  # Lambda Permission for API Gateway
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref NameHandlerFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${QuoteApi}/*/*
+
+  # API Gateway REST API
+  QuoteApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: QuoteOfTheDayAPI
+      Description: API that returns personalized quote of the day
+      Tags:
+        - Key: application_id
+          Value: quote-of-day
+
+  # API Gateway Resource
+  QuoteResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref QuoteApi
+      ParentId: !GetAtt QuoteApi.RootResourceId
+      PathPart: quote
+
+  # API Gateway Method
+  QuoteMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref QuoteApi
+      ResourceId: !Ref QuoteResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${NameHandlerFunction.Arn}/invocations
+
+  # API Gateway Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: QuoteMethod
+    Properties:
+      RestApiId: !Ref QuoteApi
+      StageName: prod
+      StageDescription:
+        Tags:
+          - Key: application_id
+            Value: quote-of-day
+
+  # CloudWatch Alarm for Lambda Errors
+  LambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: NameHandlerLambdaErrorAlarm
+      AlarmDescription: Triggers when Lambda has more than 3 errors in 1 minute
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref NameHandlerFunction
+      TreatMissingData: notBreaching
+      Tags:
+        - Key: application_id
+          Value: quote-of-day
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://${QuoteApi}.execute-api.${AWS::Region}.amazonaws.com/prod/quote
+  
+  LambdaFunctionName:
+    Description: Lambda function name
+    Value: !Ref NameHandlerFunction
+  
+  AlarmName:
+    Description: CloudWatch alarm name
+    Value: !Ref LambdaErrorAlarm
