@@ -46,7 +46,7 @@ Resources:
           TIMEOUT: '0'
       Tags:
         - Key: application_id
-          Value: quote-of-day
+          Value: myapi
       Code:
         ZipFile: |
           import json
@@ -142,7 +142,7 @@ Resources:
       Description: API that returns personalized quote of the day
       Tags:
         - Key: application_id
-          Value: quote-of-day
+          Value: myapi
 
   # API Gateway Resource
   QuoteResource:
@@ -175,7 +175,7 @@ Resources:
       StageDescription:
         Tags:
           - Key: application_id
-            Value: quote-of-day
+            Value: myapi
 
   # CloudWatch Alarm for Lambda Errors
   LambdaErrorAlarm:
@@ -196,7 +196,7 @@ Resources:
       TreatMissingData: notBreaching
       Tags:
         - Key: application_id
-          Value: quote-of-day
+          Value: myapi
 
 Outputs:
   ApiEndpoint:
