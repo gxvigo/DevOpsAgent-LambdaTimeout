@@ -318,12 +318,18 @@ Resources:
       - TriggerMethod
     Properties:
       RestApiId: !Ref QuoteApi
+      Description: !Sub 'Deployment-${AWS::StackName}-v2'
+
+  # API Gateway Stage
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref QuoteApi
+      DeploymentId: !Ref ApiDeployment
       StageName: prod
-      Description: !Sub 'Deployment at ${AWS::StackName}'
-      StageDescription:
-        Tags:
-          - Key: application_id
-            Value: myapi
+      Tags:
+        - Key: application_id
+          Value: myapi
 
   # CloudWatch Alarm for Lambda Errors
   LambdaErrorAlarm:
