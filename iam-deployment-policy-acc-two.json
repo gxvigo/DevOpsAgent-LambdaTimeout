@@ -12,12 +12,26 @@
         "cloudformation:DescribeStackEvents",
         "cloudformation:DescribeStackResources",
         "cloudformation:GetTemplate",
+        "cloudformation:GetTemplateSummary",
         "cloudformation:ValidateTemplate",
-        "cloudformation:ListStacks"
+        "cloudformation:ListStacks",
+        "cloudformation:CreateChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:DeleteChangeSet"
       ],
       "Resource": [
-        "arn:aws:cloudformation:*:*:stack/quote-of-day-acc-two/*"
+        "arn:aws:cloudformation:*:*:stack/quote-of-day-acc-two/*",
+        "arn:aws:cloudformation:*:*:stack/quote-of-day-acc-two"
       ]
+    },
+    {
+      "Sid": "CloudFormationGlobalAccess",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:GetTemplateSummary"
+      ],
+      "Resource": "*"
     },
     {
       "Sid": "IAMRoleManagement",
