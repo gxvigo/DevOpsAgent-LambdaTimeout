@@ -50,7 +50,8 @@
         "iam:UntagRole"
       ],
       "Resource": [
-        "arn:aws:iam::*:role/quote-of-day-acc-two-NameHandlerLambdaExecutionRole-*"
+        "arn:aws:iam::*:role/quote-of-day-acc-two-NameHandlerLambdaExecutionRole-*",
+        "arn:aws:iam::*:role/quote-of-day-acc-two-DevOpsAgentTriggerLambdaExecut-*"
       ]
     },
     {
@@ -73,7 +74,8 @@
         "lambda:ListTags"
       ],
       "Resource": [
-        "arn:aws:lambda:*:*:function:NameHandlerFunction"
+        "arn:aws:lambda:*:*:function:NameHandlerFunction",
+        "arn:aws:lambda:*:*:function:DevOpsAgentTriggerFunction"
       ]
     },
     {
@@ -121,7 +123,9 @@
       ],
       "Resource": [
         "arn:aws:logs:*:*:log-group:/aws/lambda/NameHandlerFunction",
-        "arn:aws:logs:*:*:log-group:/aws/lambda/NameHandlerFunction:*"
+        "arn:aws:logs:*:*:log-group:/aws/lambda/NameHandlerFunction:*",
+        "arn:aws:logs:*:*:log-group:/aws/lambda/DevOpsAgentTriggerFunction",
+        "arn:aws:logs:*:*:log-group:/aws/lambda/DevOpsAgentTriggerFunction:*"
       ]
     }
   ]
