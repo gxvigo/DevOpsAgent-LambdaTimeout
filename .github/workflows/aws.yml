@@ -1,9 +1,5 @@
-- name: Deploy to AWS CloudFormation
-  uses: aws-actions/aws-cloudformation-github-deploy@v1
-  with:
-    name: github-action
-    template: acc-two-template.yaml
-
-- env:
-  # Define the specific AWS region here
-  MY_AWS_REGION: ap-southeast-2
+name: Deploy to AWS CloudFormation
+uses: aws-actions/aws-cloudformation-github-deploy@v1
+with:
+  name: github-action
+  template: acc-two-template.yaml
