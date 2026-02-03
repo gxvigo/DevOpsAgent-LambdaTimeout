@@ -240,13 +240,13 @@ Resources:
               }
           };
 
-  # Lambda Permission for manual invocation
+  # Lambda Permission for API Gateway to invoke DevOps Agent Trigger
   DevOpsAgentTriggerPermission:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref DevOpsAgentTriggerFunction
       Action: lambda:InvokeFunction
-      Principal: '*'
+      Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${QuoteApi}/*/*
 
   # Lambda Permission for API Gateway
@@ -319,6 +319,7 @@ Resources:
     Properties:
       RestApiId: !Ref QuoteApi
       StageName: prod
+      Description: !Sub 'Deployment at ${AWS::StackName}'
       StageDescription:
         Tags:
           - Key: application_id

@@ -42,6 +42,7 @@ User Request → API Gateway (Account Two)
 - **NameHandler Lambda**: Orchestrates the quote retrieval process
 - **API Gateway**: Public REST API endpoint at `/quote`
 - **CloudWatch Alarm**: Monitors Lambda errors
+- **DevOps Agent Trigger Lambda**: Triggers DevOps Agent investigations via webhook at `/trigger-investigation`
 
 ## Quick Start
 
@@ -121,6 +122,45 @@ Response:
 Without a name parameter, it defaults to "Friend":
 ```bash
 curl "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/prod/quote"
+```
+
+### Triggering DevOps Agent Investigations
+
+The system includes an endpoint to manually trigger DevOps Agent investigations:
+
+```bash
+curl -X POST "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/prod/trigger-investigation" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "incidentId": "INC-12345",
+    "action": "created",
+    "priority": "HIGH",
+    "title": "Lambda timeout detected",
+    "description": "NameHandler Lambda is experiencing timeouts",
+    "service": "quote-of-day",
+    "data": {
+      "errorCount": 5,
+      "region": "ap-southeast-2"
+    }
+  }'
+```
+
+**Incident Schema:**
+- `incidentId` (optional): Unique incident identifier (auto-generated if not provided)
+- `action` (optional): `created`, `updated`, `closed`, or `resolved` (default: `created`)
+- `priority` (optional): `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, or `MINIMAL` (default: `HIGH`)
+- `title` (optional): Incident title (default: "Quote of the Day Service Issue")
+- `description` (optional): Detailed description
+- `service` (optional): Service name (default: "quote-of-day")
+- `data` (optional): Additional incident data
+
+Response:
+```json
+{
+  "message": "DevOps Agent investigation triggered successfully",
+  "incidentId": "INC-12345",
+  "webhookStatus": 200
+}
 ```
 
 ## The Quotes Collection
@@ -209,7 +249,21 @@ aws cloudformation delete-stack --stack-name quote-of-day-acc-one
 - `acc-one-template.yaml` - CloudFormation template for Account One
 - `acc-two-template.yaml` - CloudFormation template for Account Two
 - `DEPLOYMENT.md` - Detailed deployment guide
+- `iam-deployment-policy-acc-one.json` - IAM policy for Account One deployment
+- `iam-deployment-policy-acc-two.json` - IAM policy for Account Two deployment
+- `.github/workflows/aws-accone.yml` - GitHub Actions workflow for Account One
+- `.github/workflows/aws-acctwo.yml` - GitHub Actions workflow for Account Two
 - `template.yaml` - Legacy echo API template (deprecated)
+
+## DevOps Agent Integration
+
+The system includes integration with AWS DevOps Agent for automated incident investigation:
+
+- **Webhook Endpoint**: Configured in `DevOpsAgentTriggerFunction`
+- **Authentication**: HMAC-SHA256 signature using shared secret
+- **Use Case**: Automatically trigger investigations when CloudWatch alarms fire or manual incident reporting
+
+The webhook URL and secret are stored as Lambda environment variables and can be updated without redeploying the stack.
 
 ## License
 

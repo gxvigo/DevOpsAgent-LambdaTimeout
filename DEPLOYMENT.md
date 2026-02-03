@@ -11,6 +11,7 @@ This project implements a "Quote of the Day" system using AWS Lambda, DynamoDB, 
 ### Account Two (acc-two) - 639930233929
 - **NameHandler Lambda**: Accepts a name, generates random number (1-10), invokes GetQuote Lambda in Account One
 - **API Gateway**: Public endpoint to access the service
+- **DevOps Agent Trigger Lambda**: Triggers DevOps Agent investigations via webhook for incident management
 
 ## Prerequisites
 
@@ -225,6 +226,47 @@ curl "${API_ENDPOINT}?name=Giovanni"
 curl "${API_ENDPOINT}"
 ```
 
+### Testing DevOps Agent Integration
+
+Get the trigger investigation endpoint:
+
+```bash
+# Get the endpoint from stack outputs
+aws cloudformation describe-stacks \
+  --stack-name quote-of-day-acc-two \
+  --query 'Stacks[0].Outputs[?OutputKey==`TriggerInvestigationEndpoint`].OutputValue' \
+  --output text \
+  --region ap-southeast-2
+```
+
+Trigger a test investigation:
+
+```bash
+TRIGGER_ENDPOINT="https://YOUR_API_ID.execute-api.ap-southeast-2.amazonaws.com/prod/trigger-investigation"
+
+curl -X POST "${TRIGGER_ENDPOINT}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "incidentId": "INC-TEST-001",
+    "action": "created",
+    "priority": "MEDIUM",
+    "title": "Test incident for Quote of Day service",
+    "description": "Testing DevOps Agent webhook integration",
+    "service": "quote-of-day",
+    "data": {
+      "test": true,
+      "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+    }
+  }'
+
+# Expected response:
+# {
+#   "message": "DevOps Agent investigation triggered successfully",
+#   "incidentId": "INC-TEST-001",
+#   "webhookStatus": 200
+# }
+```
+
 ## How It Works
 
 1. User calls the API Gateway endpoint with a `name` query parameter
@@ -429,6 +471,28 @@ aws logs tail /aws/lambda/GetQuoteFunction --follow --region ap-southeast-2
 
 # Account Two - NameHandler Lambda logs
 aws logs tail /aws/lambda/NameHandlerFunction --follow --region ap-southeast-2
+
+# Account Two - DevOps Agent Trigger Lambda logs
+aws logs tail /aws/lambda/DevOpsAgentTriggerFunction --follow --region ap-southeast-2
+```
+
+### DevOps Agent Webhook Issues
+
+If the DevOps Agent trigger is not working:
+
+1. Check CloudWatch Logs for the DevOpsAgentTriggerFunction
+2. Verify the webhook URL and secret are correct in the Lambda environment variables
+3. Test the signature generation by checking the logs for timestamp and signature values
+4. Ensure the webhook endpoint is accessible from Lambda (check VPC settings if applicable)
+5. Verify the incident payload matches the required schema
+
+To update webhook credentials without redeploying:
+
+```bash
+aws lambda update-function-configuration \
+  --function-name DevOpsAgentTriggerFunction \
+  --environment Variables={WEBHOOK_URL=<NEW_URL>,WEBHOOK_SECRET=<NEW_SECRET>} \
+  --region ap-southeast-2
 ```
 
 ## Security Considerations
