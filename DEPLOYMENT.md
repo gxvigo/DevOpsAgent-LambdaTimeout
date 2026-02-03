@@ -15,8 +15,68 @@ This project implements a "Quote of the Day" system using AWS Lambda, DynamoDB, 
 ## Prerequisites
 
 - AWS CLI configured with credentials for both accounts
-- Appropriate IAM permissions to create CloudFormation stacks
+- Appropriate IAM permissions to create CloudFormation stacks (see IAM Policies section below)
 - Account IDs for both AWS accounts
+
+## IAM Policies for Deployment
+
+The deployment user needs specific IAM permissions to create and manage the CloudFormation stacks. Two policy files are provided:
+
+### Account One Policy
+
+Create an IAM policy in Account One using `iam-deployment-policy-acc-one.json`:
+
+```bash
+# Create the policy
+aws iam create-policy \
+  --policy-name QuoteOfDayDeploymentPolicyAccOne \
+  --policy-document file://iam-deployment-policy-acc-one.json \
+  --description "Policy for deploying Quote of Day stack in Account One"
+
+# Attach to your deployment user or role
+aws iam attach-user-policy \
+  --user-name <YOUR_DEPLOYMENT_USER> \
+  --policy-arn arn:aws:iam::<ACCOUNT_ONE_ID>:policy/QuoteOfDayDeploymentPolicyAccOne
+```
+
+This policy grants permissions for:
+- CloudFormation stack operations
+- IAM role creation and management for Lambda execution
+- Lambda function creation and configuration
+- DynamoDB table creation and management
+- CloudWatch Logs group creation
+
+### Account Two Policy
+
+Create an IAM policy in Account Two using `iam-deployment-policy-acc-two.json`:
+
+```bash
+# Create the policy
+aws iam create-policy \
+  --policy-name QuoteOfDayDeploymentPolicyAccTwo \
+  --policy-document file://iam-deployment-policy-acc-two.json \
+  --description "Policy for deploying Quote of Day stack in Account Two"
+
+# Attach to your deployment user or role
+aws iam attach-user-policy \
+  --user-name <YOUR_DEPLOYMENT_USER> \
+  --policy-arn arn:aws:iam::<ACCOUNT_TWO_ID>:policy/QuoteOfDayDeploymentPolicyAccTwo
+```
+
+This policy grants permissions for:
+- CloudFormation stack operations
+- IAM role creation and management for Lambda execution
+- Lambda function creation and configuration
+- API Gateway REST API creation and management
+- CloudWatch Alarms creation and management
+- CloudWatch Logs group creation
+
+### Security Notes
+
+- Both policies follow the principle of least privilege
+- Resources are scoped to specific stack names and function names
+- Wildcard permissions are limited to necessary operations only
+- Consider using IAM roles with temporary credentials for CI/CD pipelines
 
 ## Deployment Steps
 
