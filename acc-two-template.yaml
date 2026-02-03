@@ -6,6 +6,11 @@ Parameters:
     Type: String
     Description: ARN of the GetQuote Lambda function in Account One
     AllowedPattern: '^arn:aws:lambda:[a-z0-9-]+:\d{12}:function:[a-zA-Z0-9-_]+$'
+  
+  DeploymentVersion:
+    Type: String
+    Description: Version number to force API Gateway redeployment
+    Default: 'v3'
 
 Resources:
   # Lambda Execution Role
@@ -319,11 +324,14 @@ Resources:
     Properties:
       RestApiId: !Ref QuoteApi
       StageName: prod
+      Description: !Sub 'Deployment ${DeploymentVersion}'
       StageDescription:
-        Description: !Sub 'Deployment v2 - ${AWS::StackName}'
+        Description: !Sub 'Stage ${DeploymentVersion}'
         Tags:
           - Key: application_id
             Value: myapi
+          - Key: deployment_version
+            Value: !Ref DeploymentVersion
 
   # CloudWatch Alarm for Lambda Errors
   LambdaErrorAlarm:

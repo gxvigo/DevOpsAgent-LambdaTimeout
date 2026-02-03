@@ -23,6 +23,6 @@ jobs:
           aws cloudformation deploy \
             --template-file acc-two-template.yaml \
             --stack-name quote-of-day-acc-two \
-            --parameter-overrides AccountOneQuoteFunctionArn=arn:aws:lambda:ap-southeast-2:757934432864:function:GetQuoteFunction \
+            --parameter-overrides AccountOneQuoteFunctionArn=arn:aws:lambda:ap-southeast-2:757934432864:function:GetQuoteFunction DeploymentVersion=v3 \
             --capabilities CAPABILITY_IAM \
             --region ap-southeast-2
