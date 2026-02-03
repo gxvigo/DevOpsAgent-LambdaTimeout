@@ -80,7 +80,11 @@ This policy grants permissions for:
 
 ## Deployment Steps
 
-### Step 1: Deploy to Account One
+You can deploy using either the AWS CLI manually or through GitHub Actions for automated CI/CD.
+
+### Option 1: Manual Deployment with AWS CLI
+
+#### Step 1: Deploy to Account One
 
 First, deploy the DynamoDB and GetQuote Lambda function in Account One.
 
@@ -111,7 +115,7 @@ aws cloudformation describe-stacks \
 
 **Important**: Save the `GetQuoteFunctionArn` output - you'll need it for the next step.
 
-### Step 2: Deploy to Account Two
+#### Step 2: Deploy to Account Two
 
 Deploy the NameHandler Lambda and API Gateway in Account Two.
 
@@ -139,6 +143,66 @@ aws cloudformation describe-stacks \
   --output text \
   --region ap-southeast-2
 ```
+
+### Option 2: Automated Deployment with GitHub Actions
+
+Two GitHub Actions workflows are provided for automated deployment:
+
+#### Workflow Files
+
+- `.github/workflows/aws-accone.yml` - Deploys Account One stack
+- `.github/workflows/aws-acctwo.yml` - Deploys Account Two stack
+
+#### Important: Update Hardcoded Values
+
+Before using the workflows, you must update the following hardcoded values:
+
+**In the documentation (DEPLOYMENT.md):**
+- Account IDs: Currently `757934432864` (Account One) and `639930233929` (Account Two)
+- Lambda Function ARN: Currently `arn:aws:lambda:ap-southeast-2:757934432864:function:GetQuoteFunction`
+- AWS Region: Currently `ap-southeast-2`
+
+**Update these values to match your AWS accounts before deployment.**
+
+#### Configure GitHub Secrets
+
+In your GitHub repository, go to Settings → Secrets and variables → Actions, and add:
+
+**For Account One deployment:**
+```
+AWS_ACCESS_KEY_ID_ACC_ONE = <your-account-one-access-key>
+AWS_SECRET_ACCESS_KEY_ACC_ONE = <your-account-one-secret-key>
+ACCOUNT_TWO_ID = <your-account-two-id>
+```
+
+**For Account Two deployment:**
+```
+AWS_ACCESS_KEY_ID_ACC_TWO = <your-account-two-access-key>
+AWS_SECRET_ACCESS_KEY_ACC_TWO = <your-account-two-secret-key>
+ACCOUNT_ONE_QUOTE_FUNCTION_ARN = <your-getquote-lambda-arn>
+```
+
+#### Trigger Workflows
+
+**Automatic trigger:**
+- Push changes to the `main` branch
+- Both workflows will run automatically
+
+**Manual trigger:**
+1. Go to your GitHub repository
+2. Click on the "Actions" tab
+3. Select the workflow you want to run
+4. Click the "Run workflow" button
+5. Select the branch and click "Run workflow"
+
+**Note:** The "Run workflow" button only appears after the workflow file with `workflow_dispatch` has been pushed to the repository.
+
+#### Deployment Order
+
+1. **First**, run the Account One workflow to create the DynamoDB table and GetQuote Lambda
+2. **Then**, run the Account Two workflow to create the API Gateway and NameHandler Lambda
+
+The workflows use `aws cloudformation deploy` which works for both initial deployment and updates.
 
 ## Testing
 

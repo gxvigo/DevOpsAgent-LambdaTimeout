@@ -50,16 +50,16 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
 ### Prerequisites
 - AWS CLI configured
 - Access to two AWS accounts
-- IAM permissions to create CloudFormation stacks
+- IAM permissions to create CloudFormation stacks (see IAM policy files)
 
-### Basic Deployment
+### Manual Deployment
 
 1. Deploy to Account One:
 ```bash
-aws cloudformation create-stack \
+aws cloudformation deploy \
+  --template-file acc-one-template.yaml \
   --stack-name quote-of-day-acc-one \
-  --template-body file://acc-one-template.yaml \
-  --parameters ParameterKey=AccountTwoId,ParameterValue=<ACCOUNT_TWO_ID> \
+  --parameter-overrides AccountTwoId=<ACCOUNT_TWO_ID> \
   --capabilities CAPABILITY_IAM
 ```
 
@@ -67,12 +67,40 @@ aws cloudformation create-stack \
 
 3. Deploy to Account Two:
 ```bash
-aws cloudformation create-stack \
+aws cloudformation deploy \
+  --template-file acc-two-template.yaml \
   --stack-name quote-of-day-acc-two \
-  --template-body file://acc-two-template.yaml \
-  --parameters ParameterKey=AccountOneQuoteFunctionArn,ParameterValue=<LAMBDA_ARN> \
+  --parameter-overrides AccountOneQuoteFunctionArn=<LAMBDA_ARN> \
   --capabilities CAPABILITY_IAM
 ```
+
+### Automated Deployment with GitHub Actions
+
+Two GitHub Actions workflows are provided for CI/CD:
+
+- `.github/workflows/aws-accone.yml` - Deploys to Account One
+- `.github/workflows/aws-acctwo.yml` - Deploys to Account Two
+
+**Important**: These workflows contain hardcoded values that you must update for your environment:
+- Account IDs (currently set to 757934432864 and 639930233929)
+- Lambda Function ARN (currently set to arn:aws:lambda:ap-southeast-2:757934432864:function:GetQuoteFunction)
+- AWS Region (currently set to ap-southeast-2)
+
+**Required GitHub Secrets:**
+
+For Account One workflow:
+- `AWS_ACCESS_KEY_ID_ACC_ONE` - AWS access key for Account One
+- `AWS_SECRET_ACCESS_KEY_ACC_ONE` - AWS secret key for Account One
+- `ACCOUNT_TWO_ID` - Account Two ID (e.g., 639930233929)
+
+For Account Two workflow:
+- `AWS_ACCESS_KEY_ID_ACC_TWO` - AWS access key for Account Two
+- `AWS_SECRET_ACCESS_KEY_ACC_TWO` - AWS secret key for Account Two
+- `ACCOUNT_ONE_QUOTE_FUNCTION_ARN` - GetQuote Lambda ARN from Account One
+
+**Triggering Workflows:**
+- Automatically: Push to main branch
+- Manually: GitHub UI → Actions tab → Select workflow → Run workflow button
 
 ## Usage
 
