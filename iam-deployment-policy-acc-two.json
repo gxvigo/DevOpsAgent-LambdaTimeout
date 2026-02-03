@@ -47,11 +47,12 @@
         "iam:DetachRolePolicy",
         "iam:PassRole",
         "iam:TagRole",
-        "iam:UntagRole"
+        "iam:UntagRole",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies"
       ],
       "Resource": [
-        "arn:aws:iam::*:role/quote-of-day-acc-two-NameHandlerLambdaExecutionRole-*",
-        "arn:aws:iam::*:role/quote-of-day-acc-two-DevOpsAgentTriggerLambdaExecut-*"
+        "arn:aws:iam::*:role/quote-of-day-acc-two-*"
       ]
     },
     {
