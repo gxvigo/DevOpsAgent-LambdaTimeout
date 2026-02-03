@@ -1,4 +1,4 @@
-name: Deploy CloudFormation to Account One
+name: Deploy CloudFormation to Account Two
 
 on:
   push:
@@ -14,15 +14,15 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_ACC_ONE }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_ACC_ONE }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_ACC_TWO }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_ACC_TWO }}
           aws-region: ap-southeast-2
       
       - name: Deploy CloudFormation stack
         run: |
           aws cloudformation deploy \
-            --template-file acc-one-template.yaml \
-            --stack-name quote-of-day-acc-one \
-            --parameter-overrides AccountTwoId=639930233929 \
+            --template-file acc-two-template.yaml \
+            --stack-name quote-of-day-acc-two \
+            --parameter-overrides AccountOneQuoteFunctionArn=${{ secrets.ACCOUNT_ONE_QUOTE_FUNCTION_ARN }} \
             --capabilities CAPABILITY_IAM \
             --region ap-southeast-2
