@@ -31,6 +31,20 @@ Resources:
                   - lambda:InvokeFunction
                 Resource: !Ref AccountOneQuoteFunctionArn
 
+  # Lambda Execution Role for DevOps Agent Trigger
+  DevOpsAgentTriggerLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
   # Lambda Function
   NameHandlerFunction:
     Type: AWS::Lambda::Function
@@ -125,6 +139,116 @@ Resources:
                       'body': json.dumps({'error': f'Failed to get quote: {str(e)}'})
                   }
 
+  # Lambda Function to trigger DevOps Agent Investigation
+  DevOpsAgentTriggerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: DevOpsAgentTriggerFunction
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt DevOpsAgentTriggerLambdaExecutionRole.Arn
+      Timeout: 10
+      Environment:
+        Variables:
+          WEBHOOK_URL: 'https://event-ai.us-east-1.api.aws/webhook/generic/3866825c-204c-4cbc-bbba-f6a8956c2b8a'
+          WEBHOOK_SECRET: 'QbLZgN6pqdztHlevk0PS5ta5VOe4u6YE+wjkFl/E+U8='
+      Tags:
+        - Key: application_id
+          Value: myapi
+      Code:
+        ZipFile: |
+          const crypto = require('crypto');
+          
+          const webhookUrl = process.env.WEBHOOK_URL;
+          const secret = process.env.WEBHOOK_SECRET;
+          
+          exports.handler = async (event) => {
+              console.log('Event received:', JSON.stringify(event));
+              
+              // Parse input from event
+              let incidentData;
+              if (event.body) {
+                  incidentData = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+              } else {
+                  incidentData = event;
+              }
+              
+              // Build the payload according to DevOps Agent schema
+              const payload = {
+                  eventType: 'incident',
+                  incidentId: incidentData.incidentId || `INC-${Date.now()}`,
+                  action: incidentData.action || 'created',
+                  priority: incidentData.priority || 'HIGH',
+                  title: incidentData.title || 'Quote of the Day Service Issue',
+                  description: incidentData.description || 'An incident has been detected in the Quote of the Day service',
+                  timestamp: new Date().toISOString(),
+                  service: incidentData.service || 'quote-of-day',
+                  data: incidentData.data || {}
+              };
+              
+              console.log('Payload to send:', JSON.stringify(payload));
+              
+              // Create HMAC signature
+              const timestamp = new Date().toISOString();
+              const hmac = crypto.createHmac('sha256', secret);
+              hmac.update(`${timestamp}:${JSON.stringify(payload)}`, 'utf8');
+              const signature = hmac.digest('base64');
+              
+              console.log('Timestamp:', timestamp);
+              console.log('Signature:', signature);
+              
+              try {
+                  // Send to webhook
+                  const response = await fetch(webhookUrl, {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'x-amzn-event-timestamp': timestamp,
+                          'x-amzn-event-signature': signature
+                      },
+                      body: JSON.stringify(payload)
+                  });
+                  
+                  const responseText = await response.text();
+                  console.log('Webhook response status:', response.status);
+                  console.log('Webhook response:', responseText);
+                  
+                  if (!response.ok) {
+                      throw new Error(`Webhook returned status ${response.status}: ${responseText}`);
+                  }
+                  
+                  return {
+                      statusCode: 200,
+                      headers: {
+                          'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({
+                          message: 'DevOps Agent investigation triggered successfully',
+                          incidentId: payload.incidentId,
+                          webhookStatus: response.status
+                      })
+                  };
+              } catch (error) {
+                  console.error('Error sending to webhook:', error);
+                  return {
+                      statusCode: 500,
+                      body: JSON.stringify({
+                          error: 'Failed to trigger DevOps Agent investigation',
+                          details: error.message
+                      })
+                  };
+              }
+          };
+
+  # Lambda Permission for manual invocation
+  DevOpsAgentTriggerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DevOpsAgentTriggerFunction
+      Action: lambda:InvokeFunction
+      Principal: '*'
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${QuoteApi}/*/*
+
   # Lambda Permission for API Gateway
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -152,6 +276,14 @@ Resources:
       ParentId: !GetAtt QuoteApi.RootResourceId
       PathPart: quote
 
+  # API Gateway Resource for DevOps Agent Trigger
+  TriggerResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref QuoteApi
+      ParentId: !GetAtt QuoteApi.RootResourceId
+      PathPart: trigger-investigation
+
   # API Gateway Method
   QuoteMethod:
     Type: AWS::ApiGateway::Method
@@ -165,10 +297,25 @@ Resources:
         IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${NameHandlerFunction.Arn}/invocations
 
+  # API Gateway Method for DevOps Agent Trigger
+  TriggerMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref QuoteApi
+      ResourceId: !Ref TriggerResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DevOpsAgentTriggerFunction.Arn}/invocations
+
   # API Gateway Deployment
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
-    DependsOn: QuoteMethod
+    DependsOn: 
+      - QuoteMethod
+      - TriggerMethod
     Properties:
       RestApiId: !Ref QuoteApi
       StageName: prod
@@ -203,9 +350,17 @@ Outputs:
     Description: API Gateway endpoint URL
     Value: !Sub https://${QuoteApi}.execute-api.${AWS::Region}.amazonaws.com/prod/quote
   
+  TriggerInvestigationEndpoint:
+    Description: API Gateway endpoint to trigger DevOps Agent investigation
+    Value: !Sub https://${QuoteApi}.execute-api.${AWS::Region}.amazonaws.com/prod/trigger-investigation
+  
   LambdaFunctionName:
     Description: Lambda function name
     Value: !Ref NameHandlerFunction
+  
+  DevOpsAgentTriggerFunctionName:
+    Description: DevOps Agent Trigger Lambda function name
+    Value: !Ref DevOpsAgentTriggerFunction
   
   AlarmName:
     Description: CloudWatch alarm name
