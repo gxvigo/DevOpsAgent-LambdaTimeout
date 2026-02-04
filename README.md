@@ -64,6 +64,10 @@ aws cloudformation deploy \
   --capabilities CAPABILITY_IAM
 ```
 
+Optional parameters (with defaults):
+- `QuotesTableName` (default: Quotes)
+- `GetQuoteFunctionName` (default: GetQuoteFunction)
+
 2. Get the Lambda ARN from Account One outputs
 
 3. Deploy to Account Two:
@@ -74,6 +78,9 @@ aws cloudformation deploy \
   --parameter-overrides AccountOneQuoteFunctionArn=<LAMBDA_ARN> \
   --capabilities CAPABILITY_IAM
 ```
+
+Optional parameters (with defaults):
+- `DeploymentVersion` (default: v3) - Increment this to force API Gateway redeployment
 
 ### Automated Deployment with GitHub Actions
 

@@ -6,13 +6,23 @@ Parameters:
     Type: String
     Description: AWS Account ID of Account Two (for cross-account Lambda invocation)
     AllowedPattern: '^\d{12}$'
+  
+  QuotesTableName:
+    Type: String
+    Description: Name of the DynamoDB table for quotes
+    Default: 'Quotes'
+  
+  GetQuoteFunctionName:
+    Type: String
+    Description: Name of the Lambda function to retrieve quotes
+    Default: 'GetQuoteFunction'
 
 Resources:
   # DynamoDB Table for Quotes
   QuotesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: Quotes
+      TableName: !Ref QuotesTableName
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: N
@@ -59,7 +69,7 @@ Resources:
   GetQuoteFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: GetQuoteFunction
+      FunctionName: !Ref GetQuoteFunctionName
       Runtime: python3.11
       Handler: index.lambda_handler
       Role: !GetAtt QuoteLambdaExecutionRole.Arn

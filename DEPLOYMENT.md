@@ -94,10 +94,10 @@ First, deploy the DynamoDB and GetQuote Lambda function in Account One.
 export AWS_PROFILE=account-one  # or use appropriate credential method
 
 # Deploy the stack
-aws cloudformation create-stack \
+aws cloudformation deploy \
+  --template-file acc-one-template.yaml \
   --stack-name quote-of-day-acc-one \
-  --template-body file://acc-one-template.yaml \
-  --parameters ParameterKey=AccountTwoId,ParameterValue=639930233929 \
+  --parameter-overrides AccountTwoId=639930233929 \
   --capabilities CAPABILITY_IAM \
   --region ap-southeast-2
 
@@ -114,6 +114,23 @@ aws cloudformation describe-stacks \
   --region ap-southeast-2
 ```
 
+**Optional Parameters:**
+- `QuotesTableName` (default: `Quotes`) - Name of the DynamoDB table
+- `GetQuoteFunctionName` (default: `GetQuoteFunction`) - Name of the Lambda function
+
+Example with custom names:
+```bash
+aws cloudformation deploy \
+  --template-file acc-one-template.yaml \
+  --stack-name quote-of-day-acc-one \
+  --parameter-overrides \
+    AccountTwoId=639930233929 \
+    QuotesTableName=MyQuotesTable \
+    GetQuoteFunctionName=MyGetQuoteFunction \
+  --capabilities CAPABILITY_IAM \
+  --region ap-southeast-2
+```
+
 **Important**: Save the `GetQuoteFunctionArn` output - you'll need it for the next step.
 
 #### Step 2: Deploy to Account Two
@@ -125,10 +142,12 @@ Deploy the NameHandler Lambda and API Gateway in Account Two.
 export AWS_PROFILE=account-two  # or use appropriate credential method
 
 # Deploy the stack (replace <GET_QUOTE_FUNCTION_ARN> with the ARN from Step 1)
-aws cloudformation create-stack \
+aws cloudformation deploy \
+  --template-file acc-two-template.yaml \
   --stack-name quote-of-day-acc-two \
-  --template-body file://acc-two-template.yaml \
-  --parameters ParameterKey=AccountOneQuoteFunctionArn,ParameterValue=arn:aws:lambda:ap-southeast-2:757934432864:function:GetQuoteFunction \
+  --parameter-overrides \
+    AccountOneQuoteFunctionArn=arn:aws:lambda:ap-southeast-2:757934432864:function:GetQuoteFunction \
+    DeploymentVersion=v3 \
   --capabilities CAPABILITY_IAM \
   --region ap-southeast-2
 
@@ -144,6 +163,9 @@ aws cloudformation describe-stacks \
   --output text \
   --region ap-southeast-2
 ```
+
+**Optional Parameters:**
+- `DeploymentVersion` (default: `v3`) - Increment this value (e.g., v4, v5) to force API Gateway to create a new deployment when adding or modifying endpoints
 
 ### Option 2: Automated Deployment with GitHub Actions
 
@@ -307,10 +329,10 @@ To update an existing stack after making changes to the templates:
 export AWS_PROFILE=account-one
 
 # Update the stack
-aws cloudformation update-stack \
+aws cloudformation deploy \
+  --template-file acc-one-template.yaml \
   --stack-name quote-of-day-acc-one \
-  --template-body file://acc-one-template.yaml \
-  --parameters ParameterKey=AccountTwoId,ParameterValue=639930233929 \
+  --parameter-overrides AccountTwoId=639930233929 \
   --capabilities CAPABILITY_IAM \
   --region ap-southeast-2
 
@@ -319,6 +341,8 @@ aws cloudformation wait stack-update-complete \
   --stack-name quote-of-day-acc-one \
   --region ap-southeast-2
 ```
+
+**Note**: If you customized `QuotesTableName` or `GetQuoteFunctionName` during initial deployment, include those parameters in the update command.
 
 ### Update Account Two Stack
 
@@ -327,10 +351,12 @@ aws cloudformation wait stack-update-complete \
 export AWS_PROFILE=account-two
 
 # Update the stack
-aws cloudformation update-stack \
+aws cloudformation deploy \
+  --template-file acc-two-template.yaml \
   --stack-name quote-of-day-acc-two \
-  --template-body file://acc-two-template.yaml \
-  --parameters ParameterKey=AccountOneQuoteFunctionArn,ParameterValue=arn:aws:lambda:ap-southeast-2:757934432864:function:GetQuoteFunction \
+  --parameter-overrides \
+    AccountOneQuoteFunctionArn=arn:aws:lambda:ap-southeast-2:757934432864:function:GetQuoteFunction \
+    DeploymentVersion=v3 \
   --capabilities CAPABILITY_IAM \
   --region ap-southeast-2
 
@@ -340,29 +366,33 @@ aws cloudformation wait stack-update-complete \
   --region ap-southeast-2
 ```
 
+**Important**: When adding new API Gateway endpoints, increment the `DeploymentVersion` parameter (e.g., from v3 to v4) to force a new deployment.
+
 ### Quick Update Commands
 
 If you just need the commands without switching profiles:
 
 ```bash
 # Account One
-aws cloudformation update-stack \
+aws cloudformation deploy \
+  --template-file acc-one-template.yaml \
   --stack-name quote-of-day-acc-one \
-  --template-body file://acc-one-template.yaml \
-  --parameters ParameterKey=AccountTwoId,ParameterValue=<ACCOUNT_TWO_ID> \
+  --parameter-overrides AccountTwoId=<ACCOUNT_TWO_ID> \
   --capabilities CAPABILITY_IAM \
   --region ap-southeast-2
 
 # Account Two
-aws cloudformation update-stack \
+aws cloudformation deploy \
+  --template-file acc-two-template.yaml \
   --stack-name quote-of-day-acc-two \
-  --template-body file://acc-two-template.yaml \
-  --parameters ParameterKey=AccountOneQuoteFunctionArn,ParameterValue=<GET_QUOTE_FUNCTION_ARN> \
+  --parameter-overrides \
+    AccountOneQuoteFunctionArn=<GET_QUOTE_FUNCTION_ARN> \
+    DeploymentVersion=<VERSION> \
   --capabilities CAPABILITY_IAM \
   --region ap-southeast-2
 ```
 
-**Note**: Replace `<ACCOUNT_TWO_ID>` and `<GET_QUOTE_FUNCTION_ARN>` with your actual values if using the quick commands.
+**Note**: Replace placeholders with your actual values. Increment `DeploymentVersion` when modifying API Gateway resources.
 
 ## Cleanup
 
