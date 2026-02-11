@@ -170,11 +170,36 @@ Resources:
           exports.handler = async (event) => {
               console.log('Event received:', JSON.stringify(event));
               
-              // Parse input from event
               let incidentData;
-              if (event.body) {
+              
+              // Check if this is a CloudWatch Alarm event
+              if (event.AlarmName || event.AlarmArn) {
+                  console.log('CloudWatch Alarm event detected');
+                  incidentData = {
+                      incidentId: `ALARM-${event.AlarmName}-${Date.now()}`,
+                      action: event.NewStateValue === 'ALARM' ? 'created' : 'resolved',
+                      priority: 'HIGH',
+                      title: `CloudWatch Alarm: ${event.AlarmName}`,
+                      description: event.NewStateReason || event.AlarmDescription || 'CloudWatch alarm triggered',
+                      service: 'quote-of-day',
+                      data: {
+                          alarmName: event.AlarmName,
+                          alarmArn: event.AlarmArn,
+                          oldState: event.OldStateValue,
+                          newState: event.NewStateValue,
+                          reason: event.NewStateReason,
+                          timestamp: event.StateChangeTime
+                      }
+                  };
+              }
+              // Check if this is an API Gateway event
+              else if (event.body) {
+                  console.log('API Gateway event detected');
                   incidentData = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
-              } else {
+              }
+              // Direct Lambda invocation
+              else {
+                  console.log('Direct invocation event detected');
                   incidentData = event;
               }
               
@@ -350,9 +375,20 @@ Resources:
         - Name: FunctionName
           Value: !Ref NameHandlerFunction
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !GetAtt DevOpsAgentTriggerFunction.Arn
       Tags:
         - Key: application_id
           Value: myapi
+
+  # Lambda Permission for CloudWatch Alarm to invoke DevOps Agent Trigger
+  AlarmInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DevOpsAgentTriggerFunction
+      Action: lambda:InvokeFunction
+      Principal: lambda.alarms.cloudwatch.amazonaws.com
+      SourceArn: !GetAtt LambdaErrorAlarm.Arn
 
 Outputs:
   ApiEndpoint:

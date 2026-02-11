@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Cross-Account IAM Roles for CodePipeline - Deploy in Account One'
+
+Parameters:
+  AccountTwoId:
+    Type: String
+    Description: AWS Account ID where CodePipeline runs (Account Two)
+    Default: '639930233929'
+  
+  ArtifactBucketName:
+    Type: String
+    Description: Name of the S3 artifact bucket in Account Two
+    Default: 'quote-of-day-pipeline-artifacts-639930233929'
+  
+  KMSKeyArn:
+    Type: String
+    Description: ARN of the KMS key in Account Two used for artifact encryption (leave empty to use wildcard)
+    Default: 'arn:aws:kms:*:639930233929:key/*'
+
+Conditions:
+  HasKMSKeyArn: !Not [!Equals [!Ref KMSKeyArn, '']]
+
+Resources:
+  # Cross-Account Deployment Role (for CodePipeline to assume)
+  CrossAccountDeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: QuoteOfDay-CrossAccountDeploymentRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AccountTwoId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CrossAccountDeploymentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:*
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub 'arn:aws:s3:::${ArtifactBucketName}'
+                  - !Sub 'arn:aws:s3:::${ArtifactBucketName}/*'
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                  - kms:Encrypt
+                  - kms:ReEncrypt*
+                  - kms:GenerateDataKey*
+                Resource: !Sub 'arn:aws:kms:*:${AccountTwoId}:key/*'
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !GetAtt CloudFormationRoleAccountOne.Arn
+      Tags:
+        - Key: application_id
+          Value: myapi
+
+  # CloudFormation Execution Role for Account One
+  CloudFormationRoleAccountOne:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: QuoteOfDay-CloudFormationRole-AccOne
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AccountTwoId}:root'
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/PowerUserAccess
+      Policies:
+        - PolicyName: IAMPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:ListAttachedRolePolicies
+                  - iam:ListRolePolicies
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/quote-of-day-acc-one-*'
+              - Effect: Allow
+                Action:
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                Resource: '*'
+      Tags:
+        - Key: application_id
+          Value: myapi
+
+Outputs:
+  CrossAccountDeploymentRoleArn:
+    Description: ARN of the cross-account deployment role
+    Value: !GetAtt CrossAccountDeploymentRole.Arn
+    Export:
+      Name: QuoteOfDay-CrossAccountDeploymentRoleArn
+  
+  CloudFormationRoleArn:
+    Description: ARN of the CloudFormation execution role
+    Value: !GetAtt CloudFormationRoleAccountOne.Arn
+    Export:
+      Name: QuoteOfDay-CloudFormationRoleAccOne-Arn
